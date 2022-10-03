@@ -74,12 +74,12 @@ func orderManager(m map[string]int) chan<- OrderStruct {
 
 func (s *ServerStruct) get(w http.ResponseWriter, req *http.Request) {
 
-	name := req.URL.Query().Get("name")
+	name := req.URL.Query().Get("Customername")
 	replyChan := make(chan int)
 	s.orderStructChan <- OrderStruct{order_Id: GetItem, customerName: name, responseChan: replyChan}
 	reply := <-replyChan
 
-	if reply >= 0 {
+	if reply > 0 {
 		fmt.Fprintf(w, "%s order with the quantity : %d\n", name, reply)
 	} else {
 		fmt.Fprintf(w, "%s not found\n", name)
@@ -88,27 +88,27 @@ func (s *ServerStruct) get(w http.ResponseWriter, req *http.Request) {
 
 func (s *ServerStruct) set(w http.ResponseWriter, req *http.Request) {
 
-	name := req.URL.Query().Get("name")
-	val := req.URL.Query().Get("val")
+	name := req.URL.Query().Get("Customername")
+	val := req.URL.Query().Get("OrderQuantity")
 	intval, err := strconv.Atoi(val)
 	if err != nil {
 		fmt.Fprintf(w, "%s\n", err)
 	} else {
-		replyChan := make(chan int)
-		s.orderStructChan <- OrderStruct{order_Id: SetItem, customerName: name, order_Quantity: intval, responseChan: replyChan}
+		inputChan := make(chan int)
+		s.orderStructChan <- OrderStruct{order_Id: SetItem, customerName: name, order_Quantity: intval, responseChan: inputChan}
 		//no more interest or discard the received value which has been written reponseChan
-		_ = <-replyChan
+		_ = <-inputChan
 
 		fmt.Fprintf(w, " %s successfully set the order with quantity %d \n", name, intval)
 	}
 }
 func (s *ServerStruct) dec(w http.ResponseWriter, req *http.Request) {
 	//dynamic input taking from URL as json is not recommended
-	name := req.URL.Query().Get("name")
-	replyChan := make(chan int)
-	s.orderStructChan <- OrderStruct{order_Id: DecItem, customerName: name, responseChan: replyChan}
+	name := req.URL.Query().Get("Customername")
+	inputChan := make(chan int)
+	s.orderStructChan <- OrderStruct{order_Id: DecItem, customerName: name, responseChan: inputChan}
 	//reponse from order manager which has been wriiten to responseChan
-	reply := <-replyChan
+	reply := <-inputChan
 	if reply >= 0 {
 		fmt.Fprintf(w, "succesfull decrement the item count for customer %s\n", name)
 	} else {
@@ -118,11 +118,11 @@ func (s *ServerStruct) dec(w http.ResponseWriter, req *http.Request) {
 
 func (s *ServerStruct) inc(w http.ResponseWriter, req *http.Request) {
 
-	name := req.URL.Query().Get("name")
-	replyChan := make(chan int)
-	s.orderStructChan <- OrderStruct{order_Id: IncItem, customerName: name, responseChan: replyChan}
+	name := req.URL.Query().Get("Customername")
+	inputChan := make(chan int)
+	s.orderStructChan <- OrderStruct{order_Id: IncItem, customerName: name, responseChan: inputChan}
 	//reponse from order manager which has been wriiten to responseChan
-	reply := <-replyChan
+	reply := <-inputChan
 	if reply >= 0 {
 		fmt.Fprintf(w, "succesfull increment the item count for customer %s\n", name)
 	} else {
@@ -136,13 +136,16 @@ func main() {
 	//go http.HandleFunc("/get", server.get) http handlers automatically run concurrently no need go keyword
 	// here name=customer name and val is order quantity
 	//need to pass customer name and how much quantity
-	//usage http://localhost:8080/set?name=xyz&val=1
-	//http://localhost:8080/inc?name=xyz -->
-	//http://localhost:8080/dec?name=xyz -->
-	//http://localhost:8080/get?name=xyz -->
+	//http://localhost:8080/set?Customername=x&OrderQuantity=1
+	//http://localhost:8080/inc?Customername=xyz --> inc item OrderQuantity count
+	//http://localhost:8080/dec?Customername=xyz --> dec item OrderQuantity count
+	//http://localhost:8080/get?Customername=xyz --> get item OrderQuantity count
 	http.HandleFunc("/get", orderApi.get)
+	//set order by name and quantity
 	http.HandleFunc("/set", orderApi.set)
+	//increment order quantity by customer name
 	http.HandleFunc("/inc", orderApi.inc)
+	//decrement order quantity by customer name
 	http.HandleFunc("/dec", orderApi.dec)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
